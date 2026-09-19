@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCLEX Practice Quiz</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; color: #1a2733; line-height: 1.6; min-height: 100vh; }
+  .container { max-width: 760px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .subtitle { color: #5a6b7b; margin-bottom: 28px; font-size: 0.95rem; }
+  #gate { max-width: 420px; margin: 80px auto 0; background: #fff; border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  #gate h2 { font-size: 1.2rem; margin-bottom: 8px; }
+  #gate p { color: #5a6b7b; margin-bottom: 16px; font-size: 0.9rem; }
+  #code { width: 100%; padding: 12px; border: 1px solid #c4cdd5; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; }
+  #gate button { width: 100%; padding: 12px; background: #0d6efd; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  #gate button:hover { background: #0b5ed7; }
+  #gateError { color: #b02a37; font-size: 0.88rem; margin-top: 8px; display: none; }
+  .question { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+  .qnum { font-size: 0.8rem; font-weight: 700; color: #0d6efd; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .stem { font-size: 1rem; margin-bottom: 14px; }
+  .option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+  .option:hover { background: #eef3f8; }
+  .option input { margin-top: 5px; accent-color: #0d6efd; flex-shrink: 0; }
+  .option span { font-size: 0.95rem; }
+  #done { display: none; text-align: center; background: #fff; border-radius: 12px; padding: 40px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 24px; }
+  #done h2 { margin-bottom: 8px; }
+  #done p { color: #5a6b7b; }
+  footer { margin-top: 32px; text-align: center; color: #8a97a3; font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="gate">
+    <h2>Practice Quiz</h2>
+    <p>Enter the access code your instructor gave you to begin.</p>
+    <input type="password" id="code" placeholder="Access code" autocomplete="off">
+    <button id="unlockBtn">Start quiz</button>
+    <div id="gateError">Incorrect access code. Please try again.</div>
+  </div>
+
+  <div id="quiz" style="display:none">
+    <h1>NCLEX Practice Quiz</h1>
+    <div class="subtitle">10 questions &middot; No results shown</div>
+    <div id="questions"></div>
+    <div id="done">
+      <h2>Quiz complete</h2>
+      <p>You've answered all questions. You can close this page.</p>
+    </div>
+    <footer>Practice quiz &middot; For review purposes only</footer>
+  </div>
+</div>
+
+<script>
+const gate = document.getElementById('gate');
+const quiz = document.getElementById('quiz');
+const codeInput = document.getElementById('code');
+const gateError = document.getElementById('gateError');
+const b64u8 = b => Uint8Array.from(atob(b), c => c.charCodeAt(c.charCodeAt ? c : 0) && c.charCodeAt(0));
+
+function b64ToU8(b) {
+  const bin = atob(b);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+
+async function decryptQuestions(code) {
+  const payload = await (await fetch('quiz.enc.json')).json();
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(code), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: b64ToU8(payload.salt), iterations: payload.iterations, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToU8(payload.nonce) }, key, b64ToU8(payload.ct));
+  return JSON.parse(new TextDecoder().decode(plain)).questions;
+}
+
+function render(questions) {
+  const wrap = document.getElementById('questions');
+  questions.forEach((q, i) => {
+    const div = document.createElement('div');
+    div.className = 'question';
+    const label = q.type === 'multiple' ? 'Select all that apply' : 'Multiple choice';
+    div.innerHTML = `<div class="qnum">Question ${i + 1} \u2022 ${label}</div><div class="stem">${q.stem}</div>`;
+    const type = q.type === 'multiple' ? 'checkbox' : 'radio';
+    const name = 'q' + q.id;
+    q.options.forEach((opt, oi) => {
+      const lab = document.createElement('label');
+      lab.className = 'option';
+      lab.innerHTML = `<input type="${type}" name="${name}" value="${oi}"><span>${String.fromCharCode(65 + oi)}. ${opt}</span>`;
+      div.appendChild(lab);
+    });
+    wrap.appendChild(div);
+  });
+  const finish = document.createElement('button');
+  finish.textContent = 'Finish';
+  finish.style.cssText = 'width:100%;padding:14px;background:#0d6efd;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;';
+  finish.onclick = () => {
+    document.getElementById('done').style.display = 'block';
+    finish.disabled = true;
+    finish.style.background = '#8a97a3';
+    finish.scrollIntoView({ behavior: 'smooth' });
+  };
+  wrap.appendChild(finish);
+}
+
+function showQuiz() {
+  gate.style.display = 'none';
+  quiz.style.display = 'block';
+}
+
+document.getElementById('unlockBtn').onclick = async () => {
+  const code = codeInput.value.trim();
+  gateError.style.display = 'none';
+  try {
+    const questions = await decryptQuestions(code);
+    render(questions);
+    sessionStorage.setItem('unlocked', '1');
+    showQuiz();
+  } catch (e) {
+    gateError.style.display = 'block';
+  }
+};
+codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('unlockBtn').click(); });
+
+if (sessionStorage.getItem('unlocked')) {
+  // Session unlocked previously in this tab; require code again after reload for simplicity is skipped
+  const code = sessionStorage.getItem('quizCode');
+  if (code) decryptQuestions(code).then(qs => { render(qs); showQuiz(); }).catch(() => sessionStorage.removeItem('unlocked'));
+}
+codeInput.addEventListener('input', () => sessionStorage.setItem('quizCode', codeInput.value));
+</script>
+</body>
+</html>
