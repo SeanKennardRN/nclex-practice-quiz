@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NCLEX Practice Quiz — 10 Questions</title>
+<title>NCLEX Practice Quiz — 5 Questions</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f6f8; color: #1a2733; line-height: 1.6; min-height: 100vh; }
@@ -42,7 +42,7 @@
 
   <div id="quiz" style="display:none">
     <h1>NCLEX Practice Quiz</h1>
-    <div class="subtitle">10 questions &middot; Fresh set each attempt &middot; No results shown</div>
+    <div class="subtitle">5 questions &middot; Fresh set each attempt &middot; No results shown</div>
     <div id="questions"></div>
     <div id="done">
       <h2>Quiz complete</h2>
@@ -54,8 +54,8 @@
 
 <script>
 const API = 'https://lkthfijagdxdqjaqclky.supabase.co/functions/v1/quiz';
-const QUIZ_KEY = 'ten';
-const COUNT = 10;
+const QUIZ_KEY = 'five';
+const COUNT = 5;
 const gate = document.getElementById('gate');
 const quizEl = document.getElementById('quiz');
 const codeInput = document.getElementById('code');
