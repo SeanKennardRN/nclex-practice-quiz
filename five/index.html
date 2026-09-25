@@ -22,8 +22,8 @@
   #gate { max-width: 420px; margin: 80px auto 0; background: var(--nac-white); border-radius: 12px; padding: 32px; box-shadow: 0 2px 12px rgba(4,62,125,0.15); border-top: 6px solid var(--nac-orange); }
   #gate h2 { font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 1.2rem; margin-bottom: 8px; color: var(--nac-navy); }
   #gate p { color: #5a6b7b; margin-bottom: 16px; font-size: 0.9rem; }
-  #code { width: 100%; padding: 12px; border: 1px solid #c4cdd5; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; font-family: 'Open Sans', sans-serif; }
-  #code:focus { outline: 2px solid var(--nac-blue); border-color: var(--nac-blue); }
+  #code, #email { width: 100%; padding: 12px; border: 1px solid #c4cdd5; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; font-family: 'Open Sans', sans-serif; }
+  #code:focus, #email:focus { outline: 2px solid var(--nac-blue); border-color: var(--nac-blue); }
   #gate button { width: 100%; padding: 12px; background: var(--nac-orange); color: var(--nac-white); border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; font-family: 'Montserrat', sans-serif; letter-spacing: 0.02em; transition: background 0.15s; }
   #gate button:hover { background: #e97e3a; }
   #gateError { color: #b02a37; font-size: 0.88rem; margin-top: 8px; }
@@ -47,7 +47,8 @@
 <div class="container">
   <div id="gate">
     <h2>Practice Quiz</h2>
-    <p>Enter the access code your instructor gave you to begin. Each device can take this quiz once.</p>
+    <p>Enter your email and the access code your instructor gave you to begin.</p>
+    <input type="email" id="email" placeholder="Your email" autocomplete="email">
     <input type="password" id="code" placeholder="Access code" autocomplete="off">
     <button id="unlockBtn">START QUIZ</button>
     <div id="gateError" style="display:none"></div>
@@ -72,7 +73,12 @@ const COUNT = 5;
 const gate = document.getElementById('gate');
 const quizEl = document.getElementById('quiz');
 const codeInput = document.getElementById('code');
+const emailInput = document.getElementById('email');
 const gateError = document.getElementById('gateError');
+let currentQuestions = [];
+let attemptToken = '';
+let accessCode = '';
+let learnerEmail = '';
 
 function deviceId() {
   let id = localStorage.getItem('quizDeviceId');
@@ -83,11 +89,11 @@ function deviceId() {
   return id;
 }
 
-async function start(code) {
+async function start(code, email) {
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, deviceId: deviceId(), quizKey: QUIZ_KEY, count: COUNT })
+    body: JSON.stringify({ code, email, deviceId: deviceId(), quizKey: QUIZ_KEY, count: COUNT })
   });
   const data = await res.json();
   if (!res.ok) {
@@ -95,7 +101,11 @@ async function start(code) {
     gateError.style.display = 'block';
     return;
   }
-  render(data.questions);
+  currentQuestions = data.questions;
+  attemptToken = data.attemptToken;
+  accessCode = code;
+  learnerEmail = email;
+  render(currentQuestions);
   gate.style.display = 'none';
   quizEl.style.display = 'block';
 }
@@ -120,9 +130,26 @@ function render(questions) {
   const finish = document.createElement('button');
   finish.textContent = 'FINISH';
   finish.style.cssText = "width:100%;padding:14px;background:#FF914D;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;font-family:'Montserrat',sans-serif;letter-spacing:0.02em;";
-  finish.onclick = () => {
-    document.getElementById('done').style.display = 'block';
+  finish.onclick = async () => {
+    const answers = currentQuestions.map(q => ({ id: q.id, selected: [...document.querySelectorAll(`input[name="q${q.id}"]:checked`)].map(el => Number(el.value) + 1) }));
+    if (answers.some(a => a.selected.length === 0)) {
+      alert('Please answer every question before submitting.');
+      return;
+    }
     finish.disabled = true;
+    finish.textContent = 'SUBMITTING…';
+    try {
+      const res = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'submit', code: accessCode, email: learnerEmail, attemptToken, answers }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Your quiz could not be submitted.');
+    } catch (err) {
+      alert(err.message);
+      finish.disabled = false;
+      finish.textContent = 'FINISH';
+      return;
+    }
+    document.getElementById('done').style.display = 'block';
+    finish.textContent = 'SUBMITTED';
     finish.style.background = '#8a97a3';
     finish.scrollIntoView({ behavior: 'smooth' });
   };
@@ -131,9 +158,15 @@ function render(questions) {
 
 document.getElementById('unlockBtn').onclick = () => {
   gateError.style.display = 'none';
-  start(codeInput.value.trim());
+  const email = emailInput.value.trim().toLowerCase();
+  if (!email || !emailInput.checkValidity()) {
+    gateError.textContent = 'Enter a valid email address.';
+    gateError.style.display = 'block';
+    return;
+  }
+  start(codeInput.value.trim(), email);
 };
-codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('unlockBtn').click(); });
+[codeInput, emailInput].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('unlockBtn').click(); }));
 </script>
 </body>
 </html>
