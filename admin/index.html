@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Nurse Acumen — Question Bank Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --navy:#043E7D; --blue:#046EC4; --orange:#FF914D; --white:#fff; --green:#16784b; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Open Sans',sans-serif; background:#f4f6f8; color:#1a2733; line-height:1.55; }
+  .brandbar { background:var(--navy); color:#fff; font-family:'Montserrat',sans-serif; font-weight:600; text-align:center; padding:10px 16px; }
+  .brandbar span { color:var(--orange); }
+  .container { max-width:900px; margin:0 auto; padding:32px 20px 80px; }
+  #gate { max-width:440px; margin:70px auto; background:#fff; border-radius:12px; padding:32px; box-shadow:0 2px 12px rgba(4,62,125,.15); border-top:6px solid var(--orange); }
+  h1,h2 { font-family:'Montserrat',sans-serif; color:var(--navy); }
+  h2 { margin:0 0 8px; }
+  #gate p { color:#5a6b7b; }
+  #code { width:100%; padding:12px; border:1px solid #c4cdd5; border-radius:8px; font-size:1rem; margin-bottom:12px; }
+  button { width:100%; padding:12px; background:var(--orange); color:#fff; border:0; border-radius:8px; font-family:'Montserrat',sans-serif; font-weight:700; cursor:pointer; }
+  #gateError { color:#b02a37; margin-top:10px; }
+  #admin { display:none; }
+  .summary { color:#5a6b7b; margin:-8px 0 26px; }
+  .question { background:#fff; border-radius:12px; padding:24px; margin-bottom:20px; box-shadow:0 1px 6px rgba(4,62,125,.1); border-left:4px solid var(--blue); }
+  .qnum { font-family:'Montserrat',sans-serif; font-size:.78rem; font-weight:700; color:var(--orange); text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+  .stem { margin-bottom:14px; }
+  .option { display:flex; gap:10px; padding:10px 12px; border-radius:8px; margin:3px 0; }
+  .option.correct { background:#e5f5ec; border:1px solid #aad9bf; color:#0d5a36; font-weight:600; }
+  .marker { width:24px; flex:0 0 24px; text-align:center; font-weight:800; color:#8a97a3; }
+  .correct .marker { color:var(--green); }
+  .answer-note { margin-top:12px; color:var(--green); font-weight:700; font-size:.9rem; }
+  @media print { #gate,.brandbar { display:none!important; } body { background:#fff; } .container { max-width:none; padding:0; } .question { box-shadow:none; break-inside:avoid; } }
+</style>
+</head>
+<body>
+<div class="brandbar">Nurse Acumen <span>Admin</span></div>
+<main class="container">
+  <section id="gate">
+    <h2>Question Bank Admin</h2>
+    <p>Private instructor view. Enter the separate administrator access code.</p>
+    <input type="password" id="code" placeholder="Admin access code" autocomplete="off">
+    <button id="unlockBtn">OPEN QUESTION BANK</button>
+    <div id="gateError" hidden></div>
+  </section>
+  <section id="admin">
+    <h1>Complete NCLEX Question Bank</h1>
+    <div class="summary" id="summary"></div>
+    <div id="questions"></div>
+  </section>
+</main>
+<script>
+const API = 'https://lkthfijagdxdqjaqclky.supabase.co/functions/v1/quiz';
+const gate = document.getElementById('gate');
+const admin = document.getElementById('admin');
+const errorEl = document.getElementById('gateError');
+const codeInput = document.getElementById('code');
+
+async function unlock() {
+  errorEl.hidden = true;
+  const button = document.getElementById('unlockBtn');
+  button.disabled = true;
+  button.textContent = 'LOADING…';
+  try {
+    const response = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'admin', code: codeInput.value.trim() })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Unable to open the question bank.');
+    render(data.questions);
+    gate.style.display = 'none';
+    admin.style.display = 'block';
+  } catch (error) {
+    errorEl.textContent = error.message;
+    errorEl.hidden = false;
+    button.disabled = false;
+    button.textContent = 'OPEN QUESTION BANK';
+  }
+}
+
+function render(questions) {
+  const sata = questions.filter(q => q.type === 'multiple').length;
+  document.getElementById('summary').textContent = `${questions.length} questions • ${questions.length - sata} multiple choice • ${sata} select-all-that-apply • Correct answers highlighted`;
+  const wrap = document.getElementById('questions');
+  questions.forEach((q, index) => {
+    const card = document.createElement('article');
+    card.className = 'question';
+    const number = document.createElement('div');
+    number.className = 'qnum';
+    number.textContent = `Question ${index + 1} • ${q.type === 'multiple' ? 'Select all that apply' : 'Multiple choice'}`;
+    const stem = document.createElement('div');
+    stem.className = 'stem';
+    stem.textContent = q.stem;
+    card.append(number, stem);
+    q.options.forEach((text, optionIndex) => {
+      const correct = q.answer.includes(optionIndex + 1);
+      const row = document.createElement('div');
+      row.className = `option${correct ? ' correct' : ''}`;
+      const marker = document.createElement('span');
+      marker.className = 'marker';
+      marker.textContent = correct ? '✓' : '○';
+      const label = document.createElement('span');
+      label.textContent = `${String.fromCharCode(65 + optionIndex)}. ${text}`;
+      row.append(marker, label);
+      card.appendChild(row);
+    });
+    const answer = document.createElement('div');
+    answer.className = 'answer-note';
+    answer.textContent = `Correct answer${q.answer.length > 1 ? 's' : ''}: ${q.answer.map(n => String.fromCharCode(64 + n)).join(', ')}`;
+    card.appendChild(answer);
+    wrap.appendChild(card);
+  });
+}
+
+document.getElementById('unlockBtn').addEventListener('click', unlock);
+codeInput.addEventListener('keydown', event => { if (event.key === 'Enter') unlock(); });
+</script>
+</body>
+</html>
