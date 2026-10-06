@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NCLEX Practice Quiz — 10 Questions</title>
+<title>NCLEX Practice Quiz — Full Question Bank</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
@@ -56,7 +56,7 @@
 
   <div id="quiz" style="display:none">
     <h1>NCLEX Practice Quiz</h1>
-    <div class="subtitle">10 questions &middot; Fresh set each attempt &middot; No results shown</div>
+    <div class="subtitle"><span id="questionCount">All available questions</span> &middot; Full question bank &middot; No results shown</div>
     <div id="questions"></div>
     <div id="done">
       <h2>Quiz complete</h2>
@@ -68,8 +68,8 @@
 
 <script>
 const API = 'https://lkthfijagdxdqjaqclky.supabase.co/functions/v1/quiz-v2';
-const QUIZ_KEY = 'ten';
-const COUNT = 10;
+const QUIZ_KEY = 'all';
+const COUNT = 10000;
 const gate = document.getElementById('gate');
 const quizEl = document.getElementById('quiz');
 const codeInput = document.getElementById('code');
@@ -102,6 +102,7 @@ async function start(code, email) {
     return;
   }
   currentQuestions = data.questions;
+  document.getElementById('questionCount').textContent = `${currentQuestions.length} questions`;
   attemptToken = data.attemptToken;
   accessCode = code;
   learnerEmail = email;
