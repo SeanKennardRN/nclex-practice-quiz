@@ -51,6 +51,8 @@
     <input type="email" id="email" placeholder="Your email" autocomplete="email">
     <input type="password" id="code" placeholder="Access code" autocomplete="off">
     <button id="unlockBtn">START QUIZ</button>
+    <button id="recoverBtn" type="button" style="margin-top:10px;background:#043E7D">RESUME PREVIOUS ATTEMPT</button>
+    <div id="recoveryOptions" style="margin-top:14px"></div>
     <div id="gateError" style="display:none"></div>
   </div>
 
@@ -139,6 +141,82 @@ async function saveAnswer(itemId, selected) {
   saveQueues.set(itemId, next);
   try { await next; } catch (err) { console.error('Auto save failed:', err); }
 }
+
+const RECOVERY_API = 'https://lkthfijagdxdqjaqclky.supabase.co/functions/v1/quiz-recovery';
+async function recoveryRequest(mode, code, email, token) {
+  const response = await fetch(RECOVERY_API, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mode,code,email,quizKey:'ten',attemptToken:token})
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Recovery failed.');
+  return data;
+}
+document.getElementById('recoverBtn').onclick = async () => {
+  const email = emailInput.value.trim().toLowerCase();
+  const code = codeInput.value.trim();
+  const options = document.getElementById('recoveryOptions');
+  if (!email || !emailInput.checkValidity() || !code) {
+    gateError.textContent = 'Enter your email and access code first.';
+    gateError.style.display = 'block';
+    return;
+  }
+  const button = document.getElementById('recoverBtn');
+  button.disabled = true; button.textContent = 'LOOKING UP ATTEMPTS…';
+  gateError.style.display = 'none';
+  options.replaceChildren();
+  try {
+    const data = await recoveryRequest('list',code,email);
+    if (!data.sessions.length) {
+      options.textContent = 'No recoverable 10 question attempts were found from the past seven days.';
+      return;
+    }
+    const heading = document.createElement('p');
+    heading.textContent = 'Select the attempt by recognizing its first question:';
+    heading.style.marginBottom = '10px';
+    options.appendChild(heading);
+    for (const session of data.sessions) {
+      const card = document.createElement('div');
+      card.style.cssText = 'border:1px solid #c4cdd5;border-radius:8px;padding:12px;margin-bottom:10px';
+      const title = document.createElement('p');
+      title.style.cssText = 'font-weight:700;color:#043E7D;margin-bottom:6px';
+      title.textContent = new Date(session.createdAt).toLocaleString() + ' • ' + session.count + ' questions';
+      const first = document.createElement('p');
+      first.style.cssText = 'white-space:pre-wrap;margin-bottom:8px;color:#1a2733';
+      first.textContent = session.firstQuestion;
+      const choose = document.createElement('button');
+      choose.textContent = 'RESUME THIS SET';
+      choose.style.cssText = 'background:#046EC4;padding:10px;color:white;border:0;border-radius:6px;cursor:pointer;width:100%';
+      choose.onclick = async () => {
+        choose.disabled = true;choose.textContent = 'RESTORING…';
+        try {
+          const recovered = await recoveryRequest('resume',code,email,session.id);
+          currentQuestions = recovered.questions;
+          attemptToken = recovered.attemptToken;
+          accessCode = code;learnerEmail = email;
+          render(currentQuestions);
+          for (const saved of recovered.savedAnswers || []) {
+            for (const choice of saved.selected || []) {
+              const input = document.querySelector('input[name="q'+saved.id+'"][value="'+(choice-1)+'"]');
+              if (input) input.checked = true;
+            }
+          }
+          gate.style.display = 'none';quizEl.style.display = 'block';
+          window.scrollTo({top:0,behavior:'smooth'});
+        } catch(err) {
+          gateError.textContent = err.message;gateError.style.display = 'block';
+          choose.disabled = false;choose.textContent = 'RESUME THIS SET';
+        }
+      };
+      card.append(title,first,choose);
+      options.appendChild(card);
+    }
+  } catch(err) {
+    gateError.textContent = err.message;gateError.style.display = 'block';
+  } finally {
+    button.disabled = false;button.textContent = 'RESUME PREVIOUS ATTEMPT';
+  }
+};
 
 function render(questions) {
   const wrap = document.getElementById('questions');
