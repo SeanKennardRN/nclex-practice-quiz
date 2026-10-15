@@ -79,6 +79,7 @@ let currentQuestions = [];
 let attemptToken = '';
 let accessCode = '';
 let learnerEmail = '';
+let starting = false;
 
 function deviceId() {
   let id = localStorage.getItem('quizDeviceId');
@@ -90,6 +91,12 @@ function deviceId() {
 }
 
 async function start(code, email) {
+  if (starting) return;
+  starting = true;
+  const unlock = document.getElementById('unlockBtn');
+  unlock.disabled = true;
+  unlock.textContent = 'LOADING…';
+  try {
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,6 +115,14 @@ async function start(code, email) {
   render(currentQuestions);
   gate.style.display = 'none';
   quizEl.style.display = 'block';
+  } catch (err) {
+    gateError.textContent = 'Unable to start quiz. Please try again.';
+    gateError.style.display = 'block';
+  } finally {
+    starting = false;
+    unlock.disabled = false;
+    unlock.textContent = 'START QUIZ';
+  }
 }
 
 const saveQueues = new Map();
@@ -127,6 +142,7 @@ async function saveAnswer(itemId, selected) {
 
 function render(questions) {
   const wrap = document.getElementById('questions');
+  wrap.replaceChildren();
   questions.forEach((q, i) => {
     const div = document.createElement('div');
     div.className = 'question';
