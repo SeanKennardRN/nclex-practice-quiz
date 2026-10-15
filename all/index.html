@@ -111,6 +111,21 @@ async function start(code, email) {
   quizEl.style.display = 'block';
 }
 
+const saveQueues = new Map();
+async function saveAnswer(itemId, selected) {
+  const prior = saveQueues.get(itemId) || Promise.resolve();
+  const next = prior.catch(() => {}).then(async () => {
+    const response = await fetch(API, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mode:'save',code:accessCode,email:learnerEmail,attemptToken,itemId,selected})
+    });
+    if (!response.ok) throw new Error('Answer could not be saved');
+  });
+  saveQueues.set(itemId, next);
+  try { await next; } catch (err) { console.error('Auto save failed:', err); }
+}
+
 function render(questions) {
   const wrap = document.getElementById('questions');
   questions.forEach((q, i) => {
@@ -126,6 +141,11 @@ function render(questions) {
       lab.innerHTML = `<input type="${type}" name="${name}" value="${oi}"><span>${String.fromCharCode(65 + oi)}. ${opt}</span>`;
       div.appendChild(lab);
     });
+    div.addEventListener('change', (event) => {
+      if (!event.target.matches('input')) return;
+      const selected = [...div.querySelectorAll('input:checked')].map(el => Number(el.value) + 1);
+      saveAnswer(q.id, selected);
+    });
     wrap.appendChild(div);
   });
   const finish = document.createElement('button');
@@ -138,6 +158,7 @@ function render(questions) {
       alert('Please answer every question before submitting.');
       return;
     }
+    await Promise.allSettled([...saveQueues.values()]);
     finish.disabled = true;
     finish.textContent = 'SUBMITTING…';
     try {
